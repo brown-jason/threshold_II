@@ -13,7 +13,7 @@ library(RMySQL)
 library(RSQLite)
 library(tidyr)
 library(dplyr)
-
+library(DT)
 ```
 
 
@@ -166,7 +166,6 @@ dbDisconnect(con)
 
 
 ```{r}
-library(DT)
 datatable(res)
 ```
 
