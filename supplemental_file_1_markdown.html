@@ -509,6 +509,7 @@ res_pod &lt;- res %&gt;% filter(dose_adjusted==lel | dose_adjusted==loael)
 # writeData(wb,&quot;study&quot;,t3)
 # saveWorkbook(wb, file = &quot;threshold_corton.xlsx&quot;, overwrite = TRUE)
 
+dbDisconnect(con)
 res</code></pre>
 <pre><code>##      study_id dose_adjusted dose_adjusted_unit tg_id dose_level effect_val
 ## 1          80        0.0000          mg/kg/day 31221          0    17.0000

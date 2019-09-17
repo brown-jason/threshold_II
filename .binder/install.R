@@ -1,0 +1,7 @@
+install.packages("dplyr")
+install.packages("knitr")
+install.packages("openxlsx")
+install.packages("rmarkdown")
+install.packages("RMySQL")
+install.packages("RSQLite")
+install.packages("tidyr")
