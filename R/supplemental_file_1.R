@@ -1,0 +1,150 @@
+# Corton et al. "Biological Thresholds Derived from Common Measures in Rat Studies are Predictive of Liver Tumorigenic Chemicals."
+# 
+# Supplemental File 1: The R code used to extract information from ToxRefDB version 2.0.
+# Katie Paul Friedman (paul-friedman.katie@epa.gov) and Jason Brown (brown.jason@epa.gov)
+
+library(RMySQL)
+library(RSQLite)
+library(tidyr)
+library(dplyr)
+library(openxlsx)
+# con <- dbConnect(RMySQL::MySQL(), dbname = "prod_toxrefdb_2_0", username = "_dataminer", password = "pass", host = "mysql-res1.epa.gov")
+con <- dbConnect(SQLite(), dbname="data/tox_ref.sqlite")
+
+#descriptions for each tab
+info <- data.frame(tab_name = c("pod","unfiltered","study"),
+                   description = c("Fold change values for associated LELS and LOAELS based on the effect value at dose level 0.  Those studies that did not report control values will not have associated fold change data",
+                                   "Unfiltered fold change values for all dose levels (not just LEL and/or LOAELS)",
+                                   "Study information/citations for associated studies"))
+
+#create  a new workbook to save all results
+wb <- createWorkbook()
+#add in the info tab
+addWorksheet(wb, "information")
+writeData(wb, "information", info)
+
+
+#all doses for specific effects
+q1 <- "
+SELECT 
+    dose.study_id,
+dtg.dose_adjusted,
+dtg.dose_adjusted_unit,
+tg_effect.tg_id,
+dose.dose_level,
+effect_val,
+effect_val_unit,
+endpoint.endpoint_target,
+effect.effect_desc
+FROM
+dose
+INNER JOIN
+dtg ON dose.dose_id = dtg.dose_id
+INNER JOIN
+dtg_effect ON dtg_effect.dtg_id = dtg.dtg_id
+INNER JOIN
+tg_effect ON tg_effect.tg_effect_id = dtg_effect.tg_effect_id
+INNER JOIN
+effect ON effect.effect_id = tg_effect.effect_id
+INNER JOIN
+endpoint ON endpoint.endpoint_id = effect.endpoint_id
+WHERE
+effect_desc IN ('relative to body weight' , 'alanine aminotransferase (alt/sgpt)',
+'aspartate aminotransferase (ast/sgot)')
+AND endpoint_target IN ('alanine aminotransferase (alt/sgpt)' , 'aspartate aminotransferase (ast/sgot)',
+'liver')
+AND effect_val IS NOT NULL AND dose.study_id is not null
+ORDER BY dose.study_id , effect_desc , dose.dose_level;
+"
+
+q2 <- "
+SELECT 
+    pod.study_id,tg_id,pod_type,pod_value,pod_unit,endpoint_target,effect_desc,study_type,admin_route,chemical.chemical_id,casrn,preferred_name
+FROM
+    endpoint
+        INNER JOIN
+    effect ON endpoint.endpoint_id = effect.endpoint_id
+        INNER JOIN
+    tg_effect ON effect.effect_id = tg_effect.effect_id
+        INNER JOIN
+    pod_tg_effect ON tg_effect.tg_effect_id = pod_tg_effect.tg_effect_id
+        INNER JOIN
+    pod ON pod_tg_effect.pod_id = pod.pod_id
+        LEFT JOIN
+    study ON pod.study_id = study.study_id
+        INNER JOIN
+    chemical ON study.chemical_id = chemical.chemical_id
+WHERE
+    endpoint_target IN ('alanine aminotransferase (alt/sgpt)' , 'aspartate aminotransferase (ast/sgot)',
+        'liver')
+        AND pod_type IN ('lel' , 'loael')
+        AND effect_desc IN ('relative to body weight' , 'alanine aminotransferase (alt/sgpt)',
+        'aspartate aminotransferase (ast/sgot)')
+        and study.study_id is not null
+ORDER BY study.study_id, effect_desc;"
+
+q3 <- "
+SELECT
+study.*
+FROM
+endpoint
+INNER JOIN
+effect ON endpoint.endpoint_id = effect.endpoint_id
+INNER JOIN
+tg_effect ON effect.effect_id = tg_effect.effect_id
+INNER JOIN
+pod_tg_effect ON tg_effect.tg_effect_id = pod_tg_effect.tg_effect_id
+INNER JOIN
+pod ON pod_tg_effect.pod_id = pod.pod_id
+LEFT JOIN
+study ON pod.study_id = study.study_id
+INNER JOIN
+chemical ON study.chemical_id = chemical.chemical_id
+WHERE
+endpoint_target IN ('alanine aminotransferase (alt/sgpt)' , 'aspartate aminotransferase (ast/sgot)',
+                    'liver')
+AND pod_type IN ('lel' , 'loael')
+AND effect_desc IN ('relative to body weight' , 'alanine aminotransferase (alt/sgpt)',
+                    'aspartate aminotransferase (ast/sgot)')
+AND study.study_id is not null
+ORDER BY study.study_id, effect_desc;"
+
+#load both tables into memory
+t1 <- dbGetQuery(con,q1)
+t2 <- dbGetQuery(con,q2)
+t3 <- dbGetQuery(con,q3)
+t3 <- unique(t3)
+t3 <- t3[-1,]
+t3 <- t3 %>% select(study_id,study_citation,study_year,study_source,study_type:study_comment)
+
+
+#go from long format to wide format for the LEL and LOAEL values
+t2 <- unique(t2)
+t2 <- t2 %>% spread(pod_type,pod_value)
+#join both tables
+res <- t1 %>% left_join(t2, by = c("study_id","endpoint_target","effect_desc","tg_id"))
+#sort by study_id and tg_id
+res <- res %>% arrange(study_id,tg_id)
+#extract the control data
+control <- res %>% filter(dose_level == 0) %>% mutate(control = effect_val) %>% select(-dose_level,-effect_val,-dose_adjusted)
+
+#join back to results table, control is NA where no dose_level 0
+res <- res %>% left_join(control)
+
+#calculate fold change
+res <- res %>% mutate(fold_change = ifelse(grepl("control",effect_val_unit),effect_val/100,(effect_val - control)/control))
+
+#rearrange table for easier view
+res <- res %>% select(study_id:effect_val_unit,fold_change,lel,loael,pod_unit,everything()) %>% mutate(control_unit = effect_val_unit)
+
+#pod table
+res_pod <- res %>% filter(dose_adjusted==lel | dose_adjusted==loael)
+
+addWorksheet(wb, "pod")
+addWorksheet(wb, "unfiltered")
+writeData(wb, "pod", res_pod)
+writeData(wb,"unfiltered",res)
+addWorksheet(wb,"study")
+writeData(wb,"study",t3)
+saveWorkbook(wb, file = "threshold_corton.xlsx", overwrite = TRUE)
+
