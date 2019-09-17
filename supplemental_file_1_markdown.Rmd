@@ -1,6 +1,17 @@
 ---
 title: "supplemental_file_1_markdown"
-output: html_document
+jupyter:
+  kernelspec:
+    display_name: R
+    language: R
+    name: ir
+  language_info:
+    codemirror_mode: r
+    file_extension: .r
+    mimetype: text/x-r-source
+    name: R
+    pygments_lexer: r
+    version: 3.6.1
 ---
 
 Corton et al. "Biological Thresholds Derived from Common Measures in Rat Studies are Predictive of Liver Tumorigenic Chemicals."
@@ -160,6 +171,7 @@ res_pod <- res %>% filter(dose_adjusted==lel | dose_adjusted==loael)
 # writeData(wb,"study",t3)
 # saveWorkbook(wb, file = "threshold_corton.xlsx", overwrite = TRUE)
 
+dbDisconnect(con)
 res
 ```
 
