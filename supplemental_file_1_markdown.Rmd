@@ -1,17 +1,5 @@
 ---
 title: "supplemental_file_1_markdown"
-jupyter:
-  kernelspec:
-    display_name: R
-    language: R
-    name: ir
-  language_info:
-    codemirror_mode: r
-    file_extension: .r
-    mimetype: text/x-r-source
-    name: R
-    pygments_lexer: r
-    version: 3.6.1
 ---
 
 Corton et al. "Biological Thresholds Derived from Common Measures in Rat Studies are Predictive of Liver Tumorigenic Chemicals."
