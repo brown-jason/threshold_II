@@ -125,7 +125,7 @@ t3 <- t3 %>% select(study_id,study_citation,study_year,study_source,study_type:s
 # Study information/citations for associated studies
 
 ```{r}
-datatable(study)
+datatable(t3)
 ```
 
 ```{r}
@@ -156,7 +156,7 @@ res <- res %>% select(study_id:effect_val_unit,fold_change,lel,loael,pod_unit,ev
 datatable(res)
 ```
 
-#Fold change values for associated LELS and LOAELS based on the effect value at dose level 0.  Those studies that did not report control values will not have associated fold change data
+# Fold change values for associated LELS and LOAELS based on the effect value at dose level 0.  Those studies that did not report control values will not have associated fold change data
 
 ```{r}
 #pod table
