@@ -9,7 +9,6 @@ Katie Paul Friedman (paul-friedman.katie@epa.gov) and Jason Brown (brown.jason@e
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(RMySQL)
 library(RSQLite)
 library(tidyr)
 library(dplyr)
@@ -18,22 +17,8 @@ library(DT)
 
 
 ```{r load}
-# library(openxlsx)
-# con <- dbConnect(RMySQL::MySQL(), dbname = "prod_toxrefdb_2_0", username = "_dataminer", password = "pass", host = "mysql-res1.epa.gov")
+# build all queries and extract info from toxref database
 con <- dbConnect(SQLite(), dbname="data/tox_ref.sqlite")
-
-#descriptions for each tab
-info <- data.frame(tab_name = c("pod","unfiltered","study"),
-                   description = c("Fold change values for associated LELS and LOAELS based on the effect value at dose level 0.  Those studies that did not report control values will not have associated fold change data",
-                                   "Unfiltered fold change values for all dose levels (not just LEL and/or LOAELS)",
-                                   "Study information/citations for associated studies"))
-
-# #create  a new workbook to save all results
-# wb <- createWorkbook()
-# #add in the info tab
-# addWorksheet(wb, "information")
-# writeData(wb, "information", info)
-
 
 #all doses for specific effects
 q1 <- "
@@ -69,6 +54,7 @@ WHERE
 ORDER BY dose.study_id , effect_desc , dose.dose_level;
 "
 
+# long format pod info 
 q2 <- "
 SELECT 
     pod.study_id,tg_id,pod_type,pod_value,pod_unit,endpoint_target,effect_desc,study_type,admin_route,chemical.chemical_id,casrn,preferred_name
@@ -95,6 +81,7 @@ WHERE
         and study.study_id is not null
 ORDER BY study.study_id, effect_desc;"
 
+# Study citation information
 q3 <- "
 SELECT 
     study.*
@@ -121,15 +108,27 @@ WHERE
         AND study.study_id IS NOT NULL
 ORDER BY study.study_id , effect_desc;"
 
-#load both tables into memory
+#load all tables into memory
 t1 <- dbGetQuery(con,q1)
 t2 <- dbGetQuery(con,q2)
 t3 <- dbGetQuery(con,q3)
+dbDisconnect(con)
+#remove duplicates
 t3 <- unique(t3)
 t3 <- t3[-1,]
+#select relevant columns
 t3 <- t3 %>% select(study_id,study_citation,study_year,study_source,study_type:study_comment)
 
+```
 
+
+# Study information/citations for associated studies
+
+```{r}
+datatable(study)
+```
+
+```{r}
 #go from long format to wide format for the LEL and LOAEL values
 t2 <- unique(t2)
 t2 <- t2 %>% spread(pod_type,pod_value)
@@ -149,24 +148,20 @@ res <- res %>% mutate(fold_change = ifelse(grepl("control",effect_val_unit),effe
 #rearrange table for easier view
 res <- res %>% select(study_id:effect_val_unit,fold_change,lel,loael,pod_unit,everything()) %>% mutate(control_unit = effect_val_unit)
 
-#pod table
-res_pod <- res %>% filter(dose_adjusted==lel | dose_adjusted==loael)
-
-# addWorksheet(wb, "pod")
-# addWorksheet(wb, "unfiltered")
-# writeData(wb, "pod", res_pod)
-# writeData(wb,"unfiltered",res)
-# addWorksheet(wb,"study")
-# writeData(wb,"study",t3)
-# saveWorkbook(wb, file = "threshold_corton.xlsx", overwrite = TRUE)
-
-dbDisconnect(con)
 ```
 
-
+# Unfiltered fold change values for all dose levels (not just LEL and/or LOAELS
 
 ```{r}
 datatable(res)
+```
+
+#Fold change values for associated LELS and LOAELS based on the effect value at dose level 0.  Those studies that did not report control values will not have associated fold change data
+
+```{r}
+#pod table
+res_pod <- res %>% filter(dose_adjusted==lel | dose_adjusted==loael)
+datatable(res_pod)
 ```
 
 
